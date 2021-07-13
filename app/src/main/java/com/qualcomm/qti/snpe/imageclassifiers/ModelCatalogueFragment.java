@@ -67,13 +67,13 @@ public class ModelCatalogueFragment extends Fragment {
 
         mModelsAdapter = new ModelsAdapter(getActivity());
         mModelsList.setAdapter(mModelsAdapter);
-        mModelsList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                MainActivity.class.cast(getActivity()).displayModelOverview(
-                    mModelsAdapter.getItem(position), mSwitch.isChecked());
-            }
-        });
+//        mModelsList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+//            @Override
+//            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+//                MainActivity.class.cast(getActivity()).displayModelOverview(
+//                    mModelsAdapter.getItem(position), mSwitch.isChecked());
+//            }
+//        });
         getActivity().setTitle(getString(R.string.snpe_version,
                 SNPE.getRuntimeVersion((Application) getActivity().getApplicationContext())));
     }
