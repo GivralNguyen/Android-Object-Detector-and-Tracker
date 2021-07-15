@@ -16,6 +16,7 @@ import android.util.Log;
 import com.qualcomm.qti.snpe.FloatTensor;
 import com.qualcomm.qti.snpe.NeuralNetwork;
 import com.qualcomm.qti.snpe.SNPE.NeuralNetworkBuilder;
+import com.qualcomm.qti.snpe.SnpeError;
 import com.qualcomm.qti.snpe.TF8UserBufferTensor;
 import com.qualcomm.qti.snpe.Tensor;
 import com.qualcomm.qti.snpe.UserBufferTensor;
@@ -63,6 +64,10 @@ public class RetinaDetector {
     private Map<String, ByteBuffer> inputBuffers = new HashMap<>();
     private Map<String, ByteBuffer> outputBuffers = new HashMap<>();
     private float[] inputValues = new float[IMG_WIDTH * IMG_HEIGHT * 3];
+
+    private Context mContext;
+    private Application mApplication;
+    private int modelRes;
 //    private static RetinaDetector mInstance = null;
 //
 //    public static synchronized RetinaDetector getInstance(Context context, Application application, int modelRes) {
@@ -82,6 +87,9 @@ public class RetinaDetector {
         Application application,
         int modelRes
     ) {
+        this.mContext = context;
+        this.mApplication = application;
+        this.modelRes = modelRes;
 
         final Resources res = context.getResources();
         final InputStream modelInputStream = res.openRawResource(modelRes);
@@ -101,6 +109,39 @@ public class RetinaDetector {
                 .setCpuFallbackEnabled(true)
                 .setUseUserSuppliedBuffers(true)
                 .setPerformanceProfile(NeuralNetwork.PerformanceProfile.HIGH_PERFORMANCE);
+            network = builder.build();
+
+            // Prepare inputs buffer
+            mInputLayer = network.getInputTensorsNames().iterator().next();
+            mOutputLayer = network.getOutputTensorsNames();
+            inputTensor = network.createFloatTensor(network.getInputTensorsShapes().get(mInputLayer));
+
+            createAnchor();
+            Log.d(LOGTAG, "RetinaDetector inited " + network.getInputTensorsShapes().entrySet().iterator().next().getValue().length + " anchor " + anchors.size());
+        } catch (IOException e) {
+            // Do something here
+        }
+    }
+
+    public void reBuildNetworkTensor(){
+        final Resources res = mContext.getResources();
+        final InputStream modelInputStream = res.openRawResource(modelRes);
+        try {
+            final NeuralNetworkBuilder builder = new NeuralNetworkBuilder(mApplication)
+                    .setDebugEnabled(false)
+                    .setRuntimeOrder(
+                            //NeuralNetwork.Runtime.GPU_FLOAT16,
+                            NeuralNetwork.Runtime.DSP
+                    /*NeuralNetwork.Runtime.GPU,
+                    NeuralNetwork.Runtime.CPU*/
+                    )
+                    .setModel(modelInputStream, modelInputStream.available())
+                    .setOutputLayers("concatenation_3",
+                            "concatenation_4",
+                            "concatenation_5")
+                    .setCpuFallbackEnabled(true)
+                    .setUseUserSuppliedBuffers(true)
+                    .setPerformanceProfile(NeuralNetwork.PerformanceProfile.HIGH_PERFORMANCE);
             network = builder.build();
 
             // Prepare inputs buffer
@@ -256,19 +297,26 @@ public class RetinaDetector {
         //Execute input float
         //final Map<String, FloatTensor> outputs = network.execute(inputsFloat);
         //Execute input Tf8
-        network.execute(inputTensors, outputTensors);
-        long modelExecutionTime = SystemClock.elapsedRealtime() - modelExecutionStart;
+        try {
+            network.execute(inputTensors, outputTensors);
+            long modelExecutionTime = SystemClock.elapsedRealtime() - modelExecutionStart;
 
-        long outputProcessStart = SystemClock.elapsedRealtime();
-        //Convert output float
-        //final List<Bbox> bboxes = convertOutputs(outputs);
-        //Convert output Tf8
-        final List<Bbox> bboxes = convertTf8Outputs();
-        //clear & releasr for next run
+            long outputProcessStart = SystemClock.elapsedRealtime();
+            //Convert output float
+            //final List<Bbox> bboxes = convertOutputs(outputs);
+            //Convert output Tf8
+            final List<Bbox> bboxes = convertTf8Outputs();
+            //clear & releasr for next run
 //        inputs.clear();
-        long outputProcessTime = SystemClock.elapsedRealtime() - outputProcessStart;
+            long outputProcessTime = SystemClock.elapsedRealtime() - outputProcessStart;
+            return bboxes;
+        } catch (SnpeError.NativeException e){
+            releaseTf8Tensors();
+            reBuildNetworkTensor();
+        }
 
-        return bboxes;
+
+        return null;
     }
 
     private List<Bbox> buildBbox(float[] locs, float[] confidences, float[] landmarks)
