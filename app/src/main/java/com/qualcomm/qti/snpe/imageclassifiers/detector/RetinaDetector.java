@@ -40,107 +40,75 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class RetinaDetector {
     static final String LOGTAG = RetinaDetector.class.getSimpleName();
-    static final double CONFIDENCE_THRESHOLD = 0.7;//0.6;
+
+    public boolean isUsingQuantized = false;
+    static final double CONFIDENCE_THRESHOLD = 0.8;//0.8;//0.6;
     static final double IOU_THRESHOLD = 0.4;
-    public static final int IMG_WIDTH = 512;//850;//640
-    public static final int IMG_HEIGHT = 288;//480;//360
-    public final List<Anchor> anchors = new ArrayList<Anchor>();
+    public static final float TRUE_FACE_THRESHOLD = 0.75f;
+    public static final int IMG_WIDTH = 850;//568;// //512; //850;//640;
+    public static final int IMG_HEIGHT = 480;//320;// //288; // 480;//360;
+    public static final List<Anchor> anchors = new ArrayList<Anchor>();
     NeuralNetwork network = null;
 
     // Prepare input buffer
     String mInputLayer = "";
     Set<String> mOutputLayer;
 
-    //Float tensors
     private FloatTensor inputTensor = null;
-    private Map<String, FloatTensor> inputsFloat = new HashMap<>();
-
-    //Tf8 user buffers
+    private Map<String, FloatTensor> inputs = new HashMap<>();
     private Map<String, TF8UserBufferTensor> inputTensors = new HashMap<>();
     private Map<String, TF8UserBufferTensor> outputTensors = new HashMap<>();
     private Map<String, ByteBuffer> inputBuffers = new HashMap<>();
     private Map<String, ByteBuffer> outputBuffers = new HashMap<>();
+
     private float[] inputValues = new float[IMG_WIDTH * IMG_HEIGHT * 3];
 
-    private Context mContext;
-    private Application mApplication;
-    private int modelRes;
-//    private static RetinaDetector mInstance = null;
-//
-//    public static synchronized RetinaDetector getInstance(Context context, Application application, int modelRes) {
-//        if (mInstance == null) {
-//            return new RetinaDetector(context, application, modelRes);
-//        } else {
-//            return mInstance;
-//        }
-//    }
-//
-//    public static synchronized RetinaDetector getInstance() {
-//        return mInstance;
-//    }
+    //private  HexagonDelegate hexagonDelegate;
+
+    //True Face filter
+    //private TrueFaceDetector mTrueFaceDetector;
+    public Mat mFrameCv = new Mat();
 
     public RetinaDetector(
-        Context context,
-        Application application,
-        int modelRes
+            Context context,
+            Application application,
+            int modelRes
+//        int trueFaceModelRes
     ) {
-        this.mContext = context;
-        this.mApplication = application;
-        this.modelRes = modelRes;
+        //For hexagon delegate
+        // Create the Delegate instance.
+        try {
+            //Log.d(LOGTAG, "Hexagon: Native libraryDir is: " + context.getApplicationInfo().nativeLibraryDir);
+            //hexagonDelegate = new HexagonDelegate(context);
+            //options.addDelegate(hexagonDelegate);
+            //Log.d(LOGTAG,"Accelerate by Hexagon");
+        } catch (UnsupportedOperationException e) {
+            // Hexagon delegate is not supported on this device.
+            Log.d(LOGTAG,"Hexagon delegate is not supported on this device.");
+        }
 
         final Resources res = context.getResources();
         final InputStream modelInputStream = res.openRawResource(modelRes);
         try {
             final NeuralNetworkBuilder builder = new NeuralNetworkBuilder(application)
-                .setDebugEnabled(false)
-                .setRuntimeOrder(
-                    //NeuralNetwork.Runtime.GPU_FLOAT16,
-                    NeuralNetwork.Runtime.DSP
-                    /*NeuralNetwork.Runtime.GPU,
-                    NeuralNetwork.Runtime.CPU*/
-                )
-                .setModel(modelInputStream, modelInputStream.available())
-                .setOutputLayers("concatenation_3",
-                    "concatenation_4",
-                    "concatenation_5")
-                .setCpuFallbackEnabled(true)
-                .setUseUserSuppliedBuffers(true)
-                .setPerformanceProfile(NeuralNetwork.PerformanceProfile.HIGH_PERFORMANCE);
-            network = builder.build();
-
-            // Prepare inputs buffer
-            mInputLayer = network.getInputTensorsNames().iterator().next();
-            mOutputLayer = network.getOutputTensorsNames();
-            inputTensor = network.createFloatTensor(network.getInputTensorsShapes().get(mInputLayer));
-
-            createAnchor();
-            Log.d(LOGTAG, "RetinaDetector inited " + network.getInputTensorsShapes().entrySet().iterator().next().getValue().length + " anchor " + anchors.size());
-        } catch (IOException e) {
-            // Do something here
-        }
-    }
-
-    public void reBuildNetworkTensor(){
-        final Resources res = mContext.getResources();
-        final InputStream modelInputStream = res.openRawResource(modelRes);
-        try {
-            final NeuralNetworkBuilder builder = new NeuralNetworkBuilder(mApplication)
                     .setDebugEnabled(false)
                     .setRuntimeOrder(
-                            //NeuralNetwork.Runtime.GPU_FLOAT16,
-                            NeuralNetwork.Runtime.DSP
-                    /*NeuralNetwork.Runtime.GPU,
-                    NeuralNetwork.Runtime.CPU*/
+                            NeuralNetwork.Runtime.GPU_FLOAT16,
+                            //NeuralNetwork.Runtime.DSP,
+                            NeuralNetwork.Runtime.GPU,
+                            NeuralNetwork.Runtime.CPU
                     )
                     .setModel(modelInputStream, modelInputStream.available())
                     .setOutputLayers("concatenation_3",
                             "concatenation_4",
                             "concatenation_5")
                     .setCpuFallbackEnabled(true)
-                    .setUseUserSuppliedBuffers(true)
+                    .setUseUserSuppliedBuffers(isUsingQuantized)
                     .setPerformanceProfile(NeuralNetwork.PerformanceProfile.HIGH_PERFORMANCE);
             network = builder.build();
 
@@ -150,10 +118,42 @@ public class RetinaDetector {
             inputTensor = network.createFloatTensor(network.getInputTensorsShapes().get(mInputLayer));
 
             createAnchor();
+
+            //Init True Face detector
+            /*
+            mTrueFaceDetector = new TrueFaceDetector(
+                    context,
+                    application,
+                    trueFaceModelRes
+            );
+             */
+
             Log.d(LOGTAG, "RetinaDetector inited " + network.getInputTensorsShapes().entrySet().iterator().next().getValue().length + " anchor " + anchors.size());
         } catch (IOException e) {
             // Do something here
         }
+    }
+
+    private static native void nativeAlign(long frameCvPtr, long frameRetPtr, float[][] landmarkObjArr);
+
+    public Mat prepareAlignNative(Mat frameCv, Bbox box)
+    {
+        float scaleX = RetinaDetector.IMG_WIDTH / (float) frameCv.cols();//frame.getWidth();
+        float scaleY = RetinaDetector.IMG_HEIGHT / (float) frameCv.rows();//frame.getHeight();
+
+        //float landmarks[] = {
+        float landmarks[][] = {
+                {box.landmarks[0].x / scaleX, box.landmarks[0].y / scaleY},
+                {box.landmarks[1].x / scaleX, box.landmarks[1].y / scaleY},
+                {box.landmarks[2].x / scaleX, box.landmarks[2].y / scaleY},
+                {box.landmarks[3].x / scaleX, box.landmarks[3].y / scaleY},
+                {box.landmarks[4].x / scaleX, box.landmarks[4].y / scaleY}
+        };
+
+        Mat faceAligned = new Mat();//112, 112, CV_32FC1);
+        nativeAlign(frameCv.getNativeObjAddr(), faceAligned.getNativeObjAddr(), landmarks);
+
+        return faceAligned;
     }
 
     private void createAnchor() {
@@ -167,7 +167,7 @@ public class RetinaDetector {
         for (int k = 0; k < 3; ++k) {
             for (int i = 0; i < featureMap[k][0]; ++i) {
                 for (int j = 0; j < featureMap[k][1]; ++j) {
-                    for (int l = 0; l < 2; ++l) {
+                    for (int l = 0; l < 2; ++l) {//2//minSizes.size
                         final float s_ky = minSizes[k][l] / IMG_HEIGHT;
                         final float s_kx = minSizes[k][l] / IMG_WIDTH;
                         final float cx = (float) (j + 0.5) * steps[k] / IMG_WIDTH;
@@ -180,11 +180,11 @@ public class RetinaDetector {
         }
     }
 
-//    private void prepareInputs(Bitmap frame) {
-//        loadRgbBitmapAsFloat(frame);
-//        inputTensor.write(inputValues, 0, inputValues.length);
-//        inputs.put(mInputLayer, inputTensor);
-//    }
+    private void prepareInputs(Bitmap frame) {
+        loadRgbBitmapAsFloat(frame);
+        inputTensor.write(inputValues, 0, inputValues.length);
+        inputs.put(mInputLayer, inputTensor);
+    }
 
     private void loadRgbBitmapAsFloat(Bitmap image) {
         final int[] pixels = new int[image.getWidth() * image.getHeight()];
@@ -210,9 +210,9 @@ public class RetinaDetector {
         float r = ((pixel >> 16) & 0xFF);
 
         return new float[]{
-            r - 123,
-            g - 117,
-            b - 104
+                r - 123,
+                g - 117,
+                b - 104
         };
     }
 
@@ -270,70 +270,91 @@ public class RetinaDetector {
     }
 
     public List<Bbox> detectFrame(Bitmap frame) {
-//        long startTime = System.elapsedRealtime();
+        //long startTime = System.currentTimeMillis();
         //prepareInputs(frame);
-        long inputProcessStart = SystemClock.elapsedRealtime();
+        long inputProcessStart = System.currentTimeMillis();
         /*Old process*/
-       /* Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
+        Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
         Bitmap frame32 = frame.copy(Bitmap.Config.ARGB_8888, true);//ismutable
         Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
-        Imgproc.cvtColor(frameCv , frameCv , 3);//COLOR_RGBA2RGB
+        Imgproc.cvtColor(frameCv , frameCv , 1);//COLOR_RGBA2RGB
         //Mat imgARgb = new Mat(frameCv.rows(), frameCv.cols(), CV_32FC1);
         frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0);
-//        Core.subtract(frameCv, new Scalar(123.0f, 117.0f, 104.0f), frameCv);
-        Core.subtract(frameCv, new Scalar(104.0f, 117.0f, 123.0f), frameCv);
+        Core.subtract(frameCv, new Scalar(123.0f, 117.0f, 104.0f), frameCv);
         frameCv.get(0, 0, inputValues);
-        inputTensor.write(inputValues, 0, inputValues.length);
-        inputsFloat.put(mInputLayer, inputTensor);*/
-        /**/
-        /*Tf8 Buffer*/
-        TensorUtils.prepareTf8Inputs(network, mInputLayer,
-                inputTensors, inputBuffers, inputValues, frame);
-        TensorUtils.prepareTf8Outputs(network, mOutputLayer,
-                outputTensors, outputBuffers);
-        /**/
-        long inputProcessTime = SystemClock.elapsedRealtime() - inputProcessStart;
-        long modelExecutionStart = SystemClock.elapsedRealtime();
-        //Execute input float
-        //final Map<String, FloatTensor> outputs = network.execute(inputsFloat);
-        //Execute input Tf8
-        try {
-            network.execute(inputTensors, outputTensors);
-            long modelExecutionTime = SystemClock.elapsedRealtime() - modelExecutionStart;
 
-            long outputProcessStart = SystemClock.elapsedRealtime();
-            //Convert output float
-            //final List<Bbox> bboxes = convertOutputs(outputs);
-            //Convert output Tf8
-            final List<Bbox> bboxes = convertTf8Outputs();
-            //clear & releasr for next run
-//        inputs.clear();
-            long outputProcessTime = SystemClock.elapsedRealtime() - outputProcessStart;
+        //TODO: if not using quantized
+        if (!isUsingQuantized){
+
+            inputTensor.write(inputValues, 0, inputValues.length);
+            inputs.put(mInputLayer, inputTensor);
+        } else {
+            /**/
+            /*Tf8 Buffer*/
+            //TensorUtils.prepareTf8Inputs(network, mInputLayer, inputTensors, inputBuffers, frameCv, inputValues);
+
+            //TensorUtils.prepareTf8Outputs(network, mOutputLayer, outputTensors, outputBuffers);
+
+        }
+        long inputProcessTime = System.currentTimeMillis() - inputProcessStart;
+
+        //long preProcessTime = System.currentTimeMillis();
+
+        //Log.d(LOGTAG, "prepareInputs size " + inputs.entrySet().iterator().next().getValue().getSize());
+        long modelExecutionStart = System.currentTimeMillis();
+        if (!isUsingQuantized){
+            final Map<String, FloatTensor> outputs = network.execute(inputs);
+            long modelExecutionTime = System.currentTimeMillis() - modelExecutionStart;
+            //Log.d(LOGTAG + "_checkTimeFd", "preprocess time = " + inputProcessTime + " | execute time = " + modelExecutionTime);
+
+            long postProcessStart = System.currentTimeMillis();
+            final List<Bbox> bboxes = convertOutputs(outputs);
+            long postProcessTime = System.currentTimeMillis() - postProcessStart;
+
+            Log.d(LOGTAG + "_checkTimeFd", "preprocess time = " + inputProcessTime + " | execute time = " + modelExecutionTime + " | post process time = " + postProcessTime);
             return bboxes;
-        } catch (SnpeError.NativeException e){
-            releaseTf8Tensors();
-            reBuildNetworkTensor();
+        } else {
+
+            network.execute(inputTensors, outputTensors);
+            long modelExecutionTime = System.currentTimeMillis() - modelExecutionStart;
+            Log.d(LOGTAG + "_checkTimeFd", "preprocess time = " + inputProcessTime + " | execute time = " + modelExecutionTime);
+            final List<Bbox> bboxes = convertTf8Outputs();
+            return bboxes;
         }
 
 
-        return null;
+//        long preProcessRunTime = preProcessTime - startTime;
+//        long dlcRunTime = System.currentTimeMillis() - preProcessTime;
+        //Log.d(LOGTAG, "DLC: Frame processed preprocess in: " + preProcessRunTime +  " detect in: " + dlcRunTime);
+        //Log.d(LOGTAG, "network executed");
+        //long outputProcessStart = System.currentTimeMillis();
+        //clear & releasr for next run
+//        inputs.clear();
+//        releaseTensors(outputs);
+        //long outputProcessTime = System.currentTimeMillis() - outputProcessStart;
+        //Log.d(LOGTAG + "_tf8_runtime", "prepareInput " + inputProcessTime + "ms |" + " execute " + modelExecutionTime + "ms |" +" post process: " + outputProcessTime + "ms");
+
+
     }
 
     private List<Bbox> buildBbox(float[] locs, float[] confidences, float[] landmarks)
     {
         final ArrayList<Bbox> bboxes = new ArrayList<Bbox>();
+        ReadWriteLock lock = new ReentrantReadWriteLock();
 
-        int locIndex = 0;
-        int confIndex = 0;
-        int landmarkIndex = 0;
+        //int locIndex = 0;
+        //int confIndex = 0;
+        //int landmarkIndex = 0;
 
+        //synchronized (bboxes) {
         for (int i = 0; i < anchors.size(); ++i)
+        //IntStream.range(0, anchors.size() - 1).parallel().forEach(i ->
         {
             float cx = confidences[i * 2];
             float cy = confidences[i * 2 + 1];
             float conf = (float) (Math.exp(cy) / (Math.exp(cx) + Math.exp(cy)));
-            if (conf > CONFIDENCE_THRESHOLD)
-            {
+//            if (conf > CONFIDENCE_THRESHOLD) {
+            if (conf > 0.8) {
                 Anchor tmp = anchors.get(i);
                 Anchor tmp1 = new Anchor();
                 Bbox result = new Bbox();
@@ -368,9 +389,35 @@ public class RetinaDetector {
                     float ly = (tmp.cy + (landmarks[i * 10 + j * 2 + 1]) * 0.1f * tmp.sy) * IMG_HEIGHT;
                     result.landmarks[j] = new PointF(lx, ly);
                 }
+
+                //Check face probability/*
+                /*
+                Mat inputAlign = prepareAlignNative(mFrameCv, result);
+                result.alignMat = inputAlign;
+                Mat inputMat = new Mat(inputAlign.rows(), inputAlign.cols(), CV_32FC1);
+                inputAlign.convertTo(inputMat, CvType.CV_32F, 1.0 / 255, 0);
+
+                Core.subtract(inputMat, new Scalar(0.485f, 0.456f, 0.406f), inputMat);
+                Core.divide(inputMat, new Scalar(0.229f, 0.224f, 0.225f), inputMat);
+                long filterStart = System.currentTimeMillis();
+                final float[] filterOutputs = mTrueFaceDetector.filterTrueFace(inputMat);
+                long filterRunTime = System.currentTimeMillis() - filterStart;
+                Log.d(LOGTAG, "DLC: Filtered true face in: " + filterRunTime);
+                double faceProb = Math.exp(filterOutputs[0]) / (Math.exp(filterOutputs[0]) + Math.exp(filterOutputs[1]));
+                float finalProb = (float)(0.6 * faceProb + 0.4 * conf);
+                Log.d("FaceProb", "" + finalProb);
+                if (finalProb >= TRUE_FACE_THRESHOLD) {
+                    result.faceProb = finalProb;
+                    //lock.writeLock().lock();
+                    bboxes.add(result);
+                    //lock.writeLock().unlock();
+                }
+                */
                 bboxes.add(result);
             }
         }
+        //});
+        //}
         Collections.sort(bboxes);
         return bboxes;
     }
@@ -431,8 +478,8 @@ public class RetinaDetector {
 
     public void close() {
         network.release();
-        releaseTensors(inputsFloat);
-//        releaseTf8Tensors(inputTensors, outputTensors);
+//        releaseTensors(inputs);
+        releaseTf8Tensors(inputTensors, outputTensors);
     }
 
     private final void releaseTf8Tensors(Map<String, ? extends UserBufferTensor>... tensorMaps) {
@@ -443,4 +490,3 @@ public class RetinaDetector {
         }
     }
 }
-

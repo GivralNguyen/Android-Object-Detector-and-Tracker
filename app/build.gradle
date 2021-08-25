@@ -32,6 +32,11 @@ android {
         }
     }
 
+    packagingOptions {
+        pickFirst "META-INF/DEPENDENCIES"
+    }
+
+
 
 }
 
@@ -62,5 +67,7 @@ dependencies {
     implementation  group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${versions.opencv}-${versions.javacv}"
     implementation  group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${versions.opencv}-${versions.javacv}", classifier: "android-arm"
     implementation  group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${versions.opencv}-${versions.javacv}", classifier: "android-arm64"
+
+    implementation 'org.apache.zookeeper:zookeeper:3.5.5'
 
 }

@@ -16,12 +16,16 @@ import android.util.Log;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Bbox;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector;
 
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_java;
 import org.opencv.osgi.OpenCVNativeLoader;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_HEIGHT;
 import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_WIDTH;
@@ -43,70 +47,48 @@ public class MainActivity extends Activity {
 
         testImageBitmap = BitmapFactory.decodeResource(this.getResources(), R.raw.test_image);
 
+        /** Preprocess input image */
+        final float scaleX = IMG_WIDTH / (float) testImageBitmap.getWidth();
+        final float scaleY = IMG_HEIGHT / (float) testImageBitmap.getHeight();
+
+        final Matrix scalingMatrix = new Matrix();
+        scalingMatrix.postScale(scaleX, scaleY);
+
+        final Bitmap resizedBmp1 = Bitmap.createBitmap(testImageBitmap,
+                0, 0,
+                testImageBitmap.getWidth(), testImageBitmap.getHeight(),
+                scalingMatrix, false);
+
+
+
+
         /** Load model & create create instance */
-        mDetector1 = new RetinaDetector(this, this.getApplication(), R.raw.retina_mb_nosm_h288_w512_quantized);
-        mDetector2 = new RetinaDetector(this, this.getApplication(), R.raw.retina_mb_nosm_h288_w512_quantized);
-        mDetector3 = new RetinaDetector(this, this.getApplication(), R.raw.retina_mb_nosm_h288_w512_quantized);
-        mDetector4 = new RetinaDetector(this, this.getApplication(), R.raw.retina_mb_nosm_h288_w512_quantized);
+        mDetector1 = new RetinaDetector(this, this.getApplication(), R.raw.retina_480x850_quantize_v11);
 
-
-        new Thread(new Runnable() {
+        Thread t1 = new Thread(new Runnable() {
             @Override
             public void run() {
+                //createZooApache();
+
                 while(true) {
-                    startAIFlowDetect(mDetector1, testImageBitmap);
+                    startAIFlowDetect(mDetector1, resizedBmp1);
                     Log.d(LOGTAG +"_thread1", "thread_1 live");
                 }
             }
-        }).start();
+        });
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    startAIFlowDetect(mDetector2, testImageBitmap);
-                    Log.d(LOGTAG +"_thread1", "thread_2 live");
-                }
-            }
-        }).start();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    startAIFlowDetect(mDetector3, testImageBitmap);
-                    Log.d(LOGTAG +"_thread1", "thread_3 live");
-                }
-            }
-        }).start();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    startAIFlowDetect(mDetector4, testImageBitmap);
-                    Log.d(LOGTAG +"_thread1", "thread_4 live");
-                }
-            }
-        }).start();
+        t1.setName("Ai Thread 1");
+        t1.start();
 
     }
 
     private void startAIFlowDetect(RetinaDetector mDetector, Bitmap bmp){
         List<Bbox> detectedBoxes = new ArrayList<>();
-        /** Preprocess input image */
-        final float scaleX = IMG_WIDTH / (float) bmp.getWidth();
-        final float scaleY = IMG_HEIGHT / (float) bmp.getHeight();
 
-        final Matrix scalingMatrix = new Matrix();
-        scalingMatrix.postScale(scaleX, scaleY);
 
-        final Bitmap resizedBmp = Bitmap.createBitmap(bmp,
-                0, 0,
-                bmp.getWidth(), bmp.getHeight(),
-                scalingMatrix, false);
-
-        detectedBoxes = mDetector.detectFrame(resizedBmp);
+        detectedBoxes = mDetector.detectFrame(bmp);
         Log.d(LOGTAG +"_boxResultInfo", "box count= " + detectedBoxes.size());
         for (Bbox box0 : detectedBoxes){
             Log.d(LOGTAG + "singleBoxInfo", "co-ord= " + box0.x1 + " " + box0.x2 +" " + box0.y1 + " " + box0.y2 + " | conf = " + box0.conf);
@@ -132,4 +114,29 @@ public class MainActivity extends Activity {
         }
 
     }
+
+    public void createZooApache() {
+        System.out.println("Connecting to Zookeeper" + Thread.currentThread());
+        final CountDownLatch connectedSignal = new CountDownLatch(1);
+        // init zookeeper
+        try {
+            ZooKeeper zooKeeper = new ZooKeeper("192.168.0.221:2181", 5000, new Watcher() {
+                @Override
+                public void process(WatchedEvent event) {
+                    System.out.println("WatchedEvent");
+                    if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
+                        connectedSignal.countDown();
+                        System.out.println("Connected to zookeeper");
+                    }
+                }
+            });
+            connectedSignal.await();
+            System.out.println("Connected!");
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Error on connect to zoo " + e.getMessage());
+        }
+    }
+
+
 }
