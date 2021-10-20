@@ -281,6 +281,7 @@ public class RetinaDetector {
         //Mat imgARgb = new Mat(frameCv.rows(), frameCv.cols(), CV_32FC1);
         frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0);
         Core.subtract(frameCv, new Scalar(123.0f, 117.0f, 104.0f), frameCv);
+
         frameCv.get(0, 0, inputValues);
 
         //TODO: if not using quantized
@@ -350,6 +351,7 @@ public class RetinaDetector {
         for (int i = 0; i < anchors.size(); ++i)
         //IntStream.range(0, anchors.size() - 1).parallel().forEach(i ->
         {
+            //softmax
             float cx = confidences[i * 2];
             float cy = confidences[i * 2 + 1];
             float conf = (float) (Math.exp(cy) / (Math.exp(cx) + Math.exp(cy)));

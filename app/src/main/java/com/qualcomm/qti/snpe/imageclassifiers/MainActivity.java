@@ -4,98 +4,104 @@
  * Confidential and Proprietary - Qualcomm Technologies, Inc.
  */
 package com.qualcomm.qti.snpe.imageclassifiers;
+import static org.bytedeco.javacpp.Loader.getCacheDir;
 
 import android.app.Activity;
-import android.app.FragmentTransaction;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.util.Log;
 
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Bbox;
-import com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector;
+import com.qualcomm.qti.snpe.imageclassifiers.detector.MobilenetDetector;
+import com.qualcomm.qti.snpe.imageclassifiers.detector.Recognition;
 
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_java;
-import org.opencv.osgi.OpenCVNativeLoader;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-
-import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_HEIGHT;
-import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_WIDTH;
 
 public class MainActivity extends Activity {
+    /** Declare variables **/
     private static final String LOGTAG = MainActivity.class.getSimpleName();
-    private RetinaDetector mDetector1;
-    private RetinaDetector mDetector2;
-    private RetinaDetector mDetector3;
-    private RetinaDetector mDetector4;
-
+    private MobilenetDetector mDetector1;
     private Bitmap testImageBitmap;
 
+    /** Declare variables **/
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Loader.load(opencv_java.class);
 
-        testImageBitmap = BitmapFactory.decodeResource(this.getResources(), R.raw.test_image);
+        testImageBitmap = loadBmpImage(R.raw.car);/**Load bitmap image**/
 
-        /** Preprocess input image */
-        final float scaleX = IMG_WIDTH / (float) testImageBitmap.getWidth();
-        final float scaleY = IMG_HEIGHT / (float) testImageBitmap.getHeight();
-
-        final Matrix scalingMatrix = new Matrix();
-        scalingMatrix.postScale(scaleX, scaleY);
-
-        final Bitmap resizedBmp1 = Bitmap.createBitmap(testImageBitmap,
-                0, 0,
-                testImageBitmap.getWidth(), testImageBitmap.getHeight(),
-                scalingMatrix, false);
-
-
-
-
-        /** Load model & create create instance */
-        mDetector1 = new RetinaDetector(this, this.getApplication(), R.raw.retina_480x850_quantize_v11);
+        mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim); /**load mobilenet model**/
 
         Thread t1 = new Thread(new Runnable() {
             @Override
             public void run() {
-                //createZooApache();
-
+                /** Loop running detection **/
                 while(true) {
-                    startAIFlowDetect(mDetector1, resizedBmp1);
-                    Log.d(LOGTAG +"_thread1", "thread_1 live");
+
+                    try {
+                        startAIFlowDetect(mDetector1, testImageBitmap);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
                 }
+                /** Loop running detection **/
             }
         });
-
-
-
         t1.setName("Ai Thread 1");
         t1.start();
 
     }
 
-    private void startAIFlowDetect(RetinaDetector mDetector, Bitmap bmp){
-        List<Bbox> detectedBoxes = new ArrayList<>();
+    private void startAIFlowDetect(MobilenetDetector mDetector, Bitmap bmp) throws IOException {
+        List<Bbox> outputs = new ArrayList<>();
+        long detectFrameStart = System.currentTimeMillis();
+        outputs = mDetector.detectFrame(bmp);
+        long detectFrameTime = System.currentTimeMillis()- detectFrameStart;
+        Log.d(LOGTAG, "detectframe: "+ detectFrameTime);
 
+        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvasMerge = new Canvas(bmpcopy);
 
-        detectedBoxes = mDetector.detectFrame(bmp);
-        Log.d(LOGTAG +"_boxResultInfo", "box count= " + detectedBoxes.size());
-        for (Bbox box0 : detectedBoxes){
-            Log.d(LOGTAG + "singleBoxInfo", "co-ord= " + box0.x1 + " " + box0.x2 +" " + box0.y1 + " " + box0.y2 + " | conf = " + box0.conf);
+        Paint paintMerge = new Paint();
+        //paint.setAlpha(0xA0); // the transparency
+        paintMerge.setColor(Color.RED); // color is red
+        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
+        paintMerge.setStrokeWidth(1); // the stroke width
+
+        for (Bbox mBox : outputs) {
+            Rect r = new Rect((int) mBox.x1, (int) mBox.y1, (int) mBox.x2, (int) mBox.y2);
+            canvasMerge.drawRect(r, paintMerge);
         }
+        String filenameMerge = "detectresult";
+        savebitmap(bmpcopy, filenameMerge);
+
+
     }
 
+    private Bitmap loadBmpImage(int Input){
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inScaled = false;
+        Bitmap testBmp = BitmapFactory.decodeResource(getResources(),Input,o);
 
+        return testBmp;
+    }
 
     @Override
     protected void onDestroy() {
@@ -103,40 +109,24 @@ public class MainActivity extends Activity {
         if (mDetector1 != null){
             mDetector1.close();
         }
-        if (mDetector2 != null){
-            mDetector2.close();
-        }
-        if (mDetector3 != null){
-            mDetector3.close();
-        }
-        if (mDetector4 != null){
-            mDetector4.close();
-        }
 
     }
 
-    public void createZooApache() {
-        System.out.println("Connecting to Zookeeper" + Thread.currentThread());
-        final CountDownLatch connectedSignal = new CountDownLatch(1);
-        // init zookeeper
-        try {
-            ZooKeeper zooKeeper = new ZooKeeper("192.168.0.221:2181", 5000, new Watcher() {
-                @Override
-                public void process(WatchedEvent event) {
-                    System.out.println("WatchedEvent");
-                    if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
-                        connectedSignal.countDown();
-                        System.out.println("Connected to zookeeper");
-                    }
-                }
-            });
-            connectedSignal.await();
-            System.out.println("Connected!");
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("Error on connect to zoo " + e.getMessage());
-        }
+    public File savebitmap(Bitmap bmp, String filename) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        bmp.compress(Bitmap.CompressFormat.JPEG, 60, bytes);
+        File f = new File(this.getCacheDir()
+                + File.separator + filename +".jpg");
+        Log.d(LOGTAG + "fpath", "file-path= " + (getCacheDir()
+                + File.separator + filename +".jpg"));
+        f.createNewFile();
+        FileOutputStream fo = new FileOutputStream(f);
+        fo.write(bytes.toByteArray());
+        fo.close();
+        return f;
     }
+
+
 
 
 }
