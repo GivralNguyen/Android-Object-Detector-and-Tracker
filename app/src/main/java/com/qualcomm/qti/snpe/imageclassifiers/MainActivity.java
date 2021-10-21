@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         Loader.load(opencv_java.class);
 
-        testImageBitmap = loadBmpImage(R.raw.motorbike);/**Load bitmap image**/
+        testImageBitmap = loadBmpImage(R.raw.test_image);/**Load bitmap image**/
 
         mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim); /**load mobilenet model**/
 

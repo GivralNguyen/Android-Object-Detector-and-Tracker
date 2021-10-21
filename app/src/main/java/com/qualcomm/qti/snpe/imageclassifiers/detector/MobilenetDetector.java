@@ -1,7 +1,5 @@
 package com.qualcomm.qti.snpe.imageclassifiers.detector;
 
-import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_HEIGHT;
-import static com.qualcomm.qti.snpe.imageclassifiers.detector.RetinaDetector.IMG_WIDTH;
 
 import android.app.Application;
 import android.content.Context;
@@ -256,10 +254,10 @@ public class MobilenetDetector {
                 confidences.add((float) (Math.exp(c_person))/sum_of_exp);
                 float confidenceMax = (float) Collections.max(confidences);
                 int labelId = confidences.indexOf(confidenceMax);
-                if (confidenceMax > 0.6) {
+                if (confidenceMax > 0.3) {
                     Anchor tmp = anchors.get(i);
                     Anchor tmp1 = new Anchor();
-                    Recognition result = new Recognition();
+//                    Recognition result = new Recognition();
                     Bbox result_ = new Bbox();
                     tmp1.cx = (float) (tmp.cx + boxes[i * 4] * 0.1 * tmp.sx);
                     tmp1.cy = (float) (tmp.cy + boxes[i * 4 + 1] * 0.1 * tmp.sy);
@@ -274,10 +272,10 @@ public class MobilenetDetector {
                     if (y1 < 0) y1 = 0;
 
                     float x2 = (tmp1.cx + tmp1.sx / 2) * MODEL_WIDTH;
-                    if (x2 > IMG_WIDTH) x2 = IMG_WIDTH;
+                    if (x2 > MODEL_WIDTH) x2 = MODEL_WIDTH;
 
                     float y2 = (tmp1.cy + tmp1.sy / 2) * MODEL_HEIGHT;
-                    if (y2 > IMG_HEIGHT) y2 = IMG_HEIGHT;
+                    if (y2 > MODEL_HEIGHT) y2 = MODEL_HEIGHT;
 
                     RectF loc = new RectF(x1, y1, x2, y2);
                     loc = translate(loc);
@@ -299,12 +297,12 @@ public class MobilenetDetector {
             }
         }
 
-        Comparator<Recognition> boxComparator = new Comparator<Recognition>() {
-            @Override
-            public int compare(Recognition box1, Recognition box2) {
-                return (box1.getConfidence() > box2.getConfidence() ? 1 : 0);
-            }
-        };
+//        Comparator<Recognition> boxComparator = new Comparator<Recognition>() {
+//            @Override
+//            public int compare(Recognition box1, Recognition box2) {
+//                return (box1.getConfidence() > box2.getConfidence() ? 1 : 0);
+//            }
+//        };
         Comparator<Bbox> boxComparator_ = new Comparator<Bbox>() {
             @Override
             public int compare(Bbox box1, Bbox box2) {
