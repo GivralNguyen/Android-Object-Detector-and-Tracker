@@ -239,16 +239,24 @@ public class MobilenetDetector {
         {
             for (int i = 0; i < anchors.size(); ++i) {
                 float cx = scores[i * 21];
-                float cy = scores[i * 21 + 7];
+                float c_car = scores[i * 21 + 7];
+                float c_bicycle = scores[i * 21 + 2];
+                float c_bus = scores[i * 21 + 6];
+                float c_motorbike = scores[i * 21 + 14];
+                float c_person = scores[i * 21 + 15];
                 float sum_of_exp = 0 ;
                 for (int j = 0;j < 21;j++){
                     sum_of_exp += (float) Math.exp(scores[i * 21 + j]);
                 }
-                // Softmax
-                cx = (float) (Math.exp(cx))/sum_of_exp;
-                cy = (float) (Math.exp(cy))/sum_of_exp;
-
-                if (cy > 0.6) {
+                List confidences = new ArrayList<Float>();
+                confidences.add((float) (Math.exp(c_car))/sum_of_exp);
+                confidences.add((float) (Math.exp(c_bicycle))/sum_of_exp);
+                confidences.add((float) (Math.exp(c_bus))/sum_of_exp);
+                confidences.add((float) (Math.exp(c_motorbike))/sum_of_exp);
+                confidences.add((float) (Math.exp(c_person))/sum_of_exp);
+                float confidenceMax = (float) Collections.max(confidences);
+                int labelId = confidences.indexOf(confidenceMax);
+                if (confidenceMax > 0.6) {
                     Anchor tmp = anchors.get(i);
                     Anchor tmp1 = new Anchor();
                     Recognition result = new Recognition();
@@ -282,7 +290,9 @@ public class MobilenetDetector {
                     result_.y1 = loc.top;
                     result_.x2 = loc.right;
                     result_.y2 = loc.bottom;
-                    result_.conf = cy;
+                    result_.conf = confidenceMax;
+                    result_.label = labelId;
+
                     bboxes_.add(result_);
 //                    bboxes.add(result);
                 }

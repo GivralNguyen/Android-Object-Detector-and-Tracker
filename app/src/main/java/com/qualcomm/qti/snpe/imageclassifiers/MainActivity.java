@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         Loader.load(opencv_java.class);
 
-        testImageBitmap = loadBmpImage(R.raw.car);/**Load bitmap image**/
+        testImageBitmap = loadBmpImage(R.raw.motorbike);/**Load bitmap image**/
 
         mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim); /**load mobilenet model**/
 
@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
         for (Bbox mBox : outputs) {
             Rect r = new Rect((int) mBox.x1, (int) mBox.y1, (int) mBox.x2, (int) mBox.y2);
             canvasMerge.drawRect(r, paintMerge);
+            canvasMerge.drawText(Integer.toString(mBox.label), mBox.x1, mBox.y1,paintMerge );
         }
         String filenameMerge = "detectresult";
         savebitmap(bmpcopy, filenameMerge);

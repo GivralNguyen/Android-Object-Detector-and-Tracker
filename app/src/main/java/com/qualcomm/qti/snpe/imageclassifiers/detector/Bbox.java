@@ -6,7 +6,6 @@ import android.graphics.RectF;
 
 import org.opencv.core.Mat;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 public class Bbox implements Comparable<Bbox> {
@@ -29,7 +28,7 @@ public class Bbox implements Comparable<Bbox> {
     public int index = -1;
     public int personId = 0;
     public int groupId = 0;
-    public String label = "Unknown";
+    public int label;
     public String groupLabel = "Unknown";
 
     //Align Ratio
@@ -41,7 +40,6 @@ public class Bbox implements Comparable<Bbox> {
     //time
     public Long lastUpdated = System.currentTimeMillis();
     public Long lastFrExecuted = System.currentTimeMillis();
-    public LocalDateTime recognizedDate = LocalDateTime.now();
 
     //feature
     public float[] feature;
@@ -74,7 +72,7 @@ public class Bbox implements Comparable<Bbox> {
         landmarks  = new PointF[5];
     }
 
-    public Bbox(float x1, float y1, float x2, float y2, Float conf, String label) {
+    public Bbox(float x1, float y1, float x2, float y2, Float conf, int label) {
         this.x1 = x1;
         this.y1 = y1;
         this.x2 = x2;
@@ -132,7 +130,7 @@ public class Bbox implements Comparable<Bbox> {
         return o.conf.compareTo(this.conf);
     }
 
-    public String getLabel() {
+    public int getLabel() {
         return label;
     }
 
