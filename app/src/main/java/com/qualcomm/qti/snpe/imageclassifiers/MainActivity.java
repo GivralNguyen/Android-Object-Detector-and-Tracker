@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
         testImageBitmap = loadBmpImage(R.raw.car300);/**Load bitmap image**/
         long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
         Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
-        mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim); /**load mobilenet model**/
+        mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim_int8); /**load mobilenet model**/
 
         Thread t1 = new Thread(new Runnable() {
             @Override
