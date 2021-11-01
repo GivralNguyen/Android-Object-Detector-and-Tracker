@@ -5,6 +5,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.util.Log;
 
@@ -101,17 +102,40 @@ public class MobilenetDetector {
 
         /**Preprocessing**/
         long preProcessStart = System.currentTimeMillis();
-        Mat frameCv = new Mat();
-        Bitmap frame32 = frame.copy(Bitmap.Config.ARGB_8888, true);
-        Utils.bitmapToMat(frame32, frameCv);
-        Mat resizeimage = new Mat();
-        Size sz = new Size(MODEL_WIDTH,MODEL_HEIGHT);
-        Imgproc.resize( frameCv, resizeimage, sz );
-        Imgproc.cvtColor(resizeimage , resizeimage , Imgproc.COLOR_RGBA2RGB);//COLOR_RGBA2RGB
-        resizeimage.convertTo(resizeimage, CvType.CV_32F);//, 1.0, 0); //convert to 32F
-        Core.subtract(resizeimage, new Scalar(127.0f, 127.0f, 127.0f), resizeimage);
-        Core.divide(resizeimage, new Scalar(128.0f, 128.0f, 128.0f), resizeimage);
-        resizeimage.get(0, 0, inputValues); //image.astype(np.float32)
+
+        /**Resizing Bitmap**/
+        final float scaleX = MODEL_WIDTH / (float) (frame.getWidth());
+        final float scaleY = MODEL_HEIGHT / (float) (frame.getHeight());
+        final Matrix scalingMatrix = new Matrix();
+        scalingMatrix.postScale(scaleX, scaleY);
+        Bitmap resizedBitmap = Bitmap.createBitmap(frame,
+                0, 0,
+                frame.getWidth(), frame.getHeight(),scalingMatrix,false);
+        Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
+        Bitmap frame32 = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true);//ismutable
+        Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
+        Imgproc.cvtColor(frameCv , frameCv , Imgproc.COLOR_RGBA2RGB);//COLOR_RGBA2RGB
+        frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0); //convert to 32F
+        Core.subtract(frameCv, new Scalar(127.0f, 127.0f, 127.0f), frameCv);
+        Core.divide(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
+        frameCv.get(0, 0, inputValues); //image.astype(np.float32)
+        /**Resizing Bitmap**/
+
+        /**Resizing opencv**/
+//        Mat frameCv = new Mat();
+//        Bitmap frame32 = frame.copy(Bitmap.Config.ARGB_8888, true);
+//        Utils.bitmapToMat(frame32, frameCv);
+//        Mat resizeimage = new Mat();
+//        Size sz = new Size(MODEL_WIDTH,MODEL_HEIGHT);
+//        Imgproc.resize( frameCv, resizeimage, sz );
+//        Imgproc.cvtColor(resizeimage , resizeimage , Imgproc.COLOR_RGBA2RGB);//COLOR_RGBA2RGB
+//        resizeimage.convertTo(resizeimage, CvType.CV_32F);//, 1.0, 0); //convert to 32F
+//        Core.subtract(resizeimage, new Scalar(127.0f, 127.0f, 127.0f), resizeimage);
+//        Core.divide(resizeimage, new Scalar(128.0f, 128.0f, 128.0f), resizeimage);
+//        resizeimage.get(0, 0, inputValues); //image.astype(np.float32)
+        /**Resizing opencv**/
+
+
         long preProcessTime = System.currentTimeMillis()- preProcessStart;
         Log.d(LOGTAG,"Preprocess_time: "+ preProcessTime);
         /**Preprocessing**/

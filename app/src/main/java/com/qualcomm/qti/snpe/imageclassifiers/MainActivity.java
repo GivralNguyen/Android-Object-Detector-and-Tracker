@@ -43,9 +43,10 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Loader.load(opencv_java.class);
-
-        testImageBitmap = loadBmpImage(R.raw.test_image);/**Load bitmap image**/
-
+        long loadBmpStart = System.currentTimeMillis();
+        testImageBitmap = loadBmpImage(R.raw.car300);/**Load bitmap image**/
+        long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
+        Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
         mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim); /**load mobilenet model**/
 
         Thread t1 = new Thread(new Runnable() {
