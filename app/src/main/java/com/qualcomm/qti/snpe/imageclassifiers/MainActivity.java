@@ -17,8 +17,9 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.util.Log;
 
+import com.qualcomm.qti.snpe.FloatTensor;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Bbox;
-import com.qualcomm.qti.snpe.imageclassifiers.detector.MobilenetDetector;
+import com.qualcomm.qti.snpe.imageclassifiers.detector.TFMobilenetQuantizeDetector;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Recognition;
 
 import org.bytedeco.javacpp.Loader;
@@ -30,11 +31,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     /** Declare variables **/
     private static final String LOGTAG = MainActivity.class.getSimpleName();
-    private MobilenetDetector mDetector1;
+    private TFMobilenetQuantizeDetector mDetector1;
     private Bitmap testImageBitmap;
 
     /** Declare variables **/
@@ -47,7 +49,7 @@ public class MainActivity extends Activity {
         testImageBitmap = loadBmpImage(R.raw.car300);/**Load bitmap image**/
         long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
         Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
-        mDetector1 = new MobilenetDetector(this, this.getApplication(), R.raw.mb1_ssd_sim_int8); /**load mobilenet model**/
+        mDetector1 = new TFMobilenetQuantizeDetector(this, this.getApplication(), R.raw.mobilenet_ssd_quantized); /**load mobilenet model**/
 
         Thread t1 = new Thread(new Runnable() {
             @Override
@@ -70,29 +72,29 @@ public class MainActivity extends Activity {
 
     }
 
-    private void startAIFlowDetect(MobilenetDetector mDetector, Bitmap bmp) throws IOException {
-        List<Bbox> outputs = new ArrayList<>();
+    private void startAIFlowDetect(TFMobilenetQuantizeDetector mDetector, Bitmap bmp) throws IOException {
+        Map<String, FloatTensor> outputs;
         long detectFrameStart = System.currentTimeMillis();
         outputs = mDetector.detectFrame(bmp);
         long detectFrameTime = System.currentTimeMillis()- detectFrameStart;
         Log.d(LOGTAG, "detectframe: "+ detectFrameTime);
 
-        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
-        Canvas canvasMerge = new Canvas(bmpcopy);
-
-        Paint paintMerge = new Paint();
-        //paint.setAlpha(0xA0); // the transparency
-        paintMerge.setColor(Color.RED); // color is red
-        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
-        paintMerge.setStrokeWidth(1); // the stroke width
-
-        for (Bbox mBox : outputs) {
-            Rect r = new Rect((int) mBox.x1, (int) mBox.y1, (int) mBox.x2, (int) mBox.y2);
-            canvasMerge.drawRect(r, paintMerge);
-            canvasMerge.drawText(Integer.toString(mBox.label), mBox.x1, mBox.y1,paintMerge );
-        }
-        String filenameMerge = "detectresult";
-        savebitmap(bmpcopy, filenameMerge);
+//        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
+//        Canvas canvasMerge = new Canvas(bmpcopy);
+//
+//        Paint paintMerge = new Paint();
+//        //paint.setAlpha(0xA0); // the transparency
+//        paintMerge.setColor(Color.RED); // color is red
+//        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
+//        paintMerge.setStrokeWidth(1); // the stroke width
+//
+//        for (Bbox mBox : outputs) {
+//            Rect r = new Rect((int) mBox.x1, (int) mBox.y1, (int) mBox.x2, (int) mBox.y2);
+//            canvasMerge.drawRect(r, paintMerge);
+//            canvasMerge.drawText(Integer.toString(mBox.label), mBox.x1, mBox.y1,paintMerge );
+//        }
+//        String filenameMerge = "detectresult";
+//        savebitmap(bmpcopy, filenameMerge);
 
 
     }

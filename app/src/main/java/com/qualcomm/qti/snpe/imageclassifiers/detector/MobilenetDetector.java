@@ -69,7 +69,7 @@ public class MobilenetDetector {
             final SNPE.NeuralNetworkBuilder builder = new SNPE.NeuralNetworkBuilder(application)
                     .setDebugEnabled(false)
                     .setRuntimeOrder(
-//                            NeuralNetwork.Runtime.AIP,
+                            NeuralNetwork.Runtime.AIP,
                             NeuralNetwork.Runtime.DSP,
                             NeuralNetwork.Runtime.GPU_FLOAT16,
                             NeuralNetwork.Runtime.GPU,
