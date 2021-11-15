@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         Loader.load(opencv_java.class);
         long loadBmpStart = System.currentTimeMillis();
-        testImageBitmap = loadBmpImage(R.raw.car300);/**Load bitmap image**/
+        testImageBitmap = loadBmpImage(R.raw.image2);/**Load bitmap image**/
         long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
         Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
         mDetector1 = new TFMobilenetQuantizeDetector(this, this.getApplication(), R.raw.mobilenet_ssd_quantized); /**load mobilenet model**/
@@ -73,12 +73,30 @@ public class MainActivity extends Activity {
     }
 
     private void startAIFlowDetect(TFMobilenetQuantizeDetector mDetector, Bitmap bmp) throws IOException {
-        Map<String, FloatTensor> outputs;
+        List<float[]> outputs;
         long detectFrameStart = System.currentTimeMillis();
         outputs = mDetector.detectFrame(bmp);
+
         long detectFrameTime = System.currentTimeMillis()- detectFrameStart;
         Log.d(LOGTAG, "detectframe: "+ detectFrameTime);
+        float[] outputConf = outputs.get(0);
+        float[] outputClass = outputs.get(1);
+        float[] outputBbox = outputs.get(2);
+        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvasMerge = new Canvas(bmpcopy);
 
+        Paint paintMerge = new Paint();
+        //paint.setAlpha(0xA0); // the transparency
+        paintMerge.setColor(Color.RED); // color is red
+        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
+        paintMerge.setStrokeWidth(1); // the stroke width
+        for(int i = 0; i< outputConf.length;i++){
+            Rect r = new Rect((int) outputBbox[i*4+1], (int) outputBbox[i*4], (int) outputBbox[i*4+3], (int) outputBbox[i*4+2]);
+            canvasMerge.drawRect(r, paintMerge);
+            canvasMerge.drawText(Float.toString(outputClass[i]),(int) outputBbox[i*4+1], (int) outputBbox[i*4+0],paintMerge );
+        }
+        String filenameMerge = "detectresult";
+        savebitmap(bmpcopy, filenameMerge);
 //        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
 //        Canvas canvasMerge = new Canvas(bmpcopy);
 //

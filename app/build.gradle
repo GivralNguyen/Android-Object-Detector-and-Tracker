@@ -69,5 +69,7 @@ dependencies {
     implementation  group: 'org.bytedeco.javacpp-presets', name: 'opencv', version: "${versions.opencv}-${versions.javacv}", classifier: "android-arm64"
 
     implementation 'org.apache.zookeeper:zookeeper:3.5.5'
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-lang3
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
 
 }

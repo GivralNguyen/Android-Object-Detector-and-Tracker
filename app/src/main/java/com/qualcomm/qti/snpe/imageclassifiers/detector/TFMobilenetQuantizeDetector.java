@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
-import android.graphics.RectF;
 import android.util.Log;
 
 import com.qualcomm.qti.snpe.FloatTensor;
@@ -16,23 +15,22 @@ import com.qualcomm.qti.snpe.TF8UserBufferTensor;
 import com.qualcomm.qti.snpe.Tensor;
 import com.qualcomm.qti.snpe.UserBufferTensor;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
-import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 
 public class TFMobilenetQuantizeDetector {
     static final String LOGTAG = TFMobilenetQuantizeDetector.class.getSimpleName();
@@ -67,7 +65,7 @@ public class TFMobilenetQuantizeDetector {
             final SNPE.NeuralNetworkBuilder builder = new SNPE.NeuralNetworkBuilder(application)
                     .setDebugEnabled(false)
                     .setRuntimeOrder(
-                            NeuralNetwork.Runtime.AIP,
+//                            NeuralNetwork.Runtime.AIP,
                             NeuralNetwork.Runtime.DSP,
                             NeuralNetwork.Runtime.GPU_FLOAT16,
                             NeuralNetwork.Runtime.GPU,
@@ -91,7 +89,7 @@ public class TFMobilenetQuantizeDetector {
     }
 
 
-    public Map<String, FloatTensor> detectFrame(Bitmap frame) {
+    public List<float[]> detectFrame(Bitmap frame) {
 
         mRatioWidth = (float) (MODEL_WIDTH / (frame.getWidth() * 1.0));
         mRatioHeight =  (float)(MODEL_HEIGHT / (frame.getHeight()* 1.0));
@@ -112,6 +110,8 @@ public class TFMobilenetQuantizeDetector {
         Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
         Imgproc.cvtColor(frameCv , frameCv , Imgproc.COLOR_RGBA2BGR);//COLOR_RGBA2RGB
         frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0); //convert to 32F
+        Core.subtract(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
+        Core.divide(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
         frameCv.get(0, 0, inputValues); //image.astype(np.float32)
         /**Resizing Bitmap**/
 
@@ -136,34 +136,60 @@ public class TFMobilenetQuantizeDetector {
         long modelExecutionTime = System.currentTimeMillis() - modelExecutionStart;
         Log.d(LOGTAG,"model_Execute: "+ modelExecutionTime);
         /**Execute model**/
+        List<float[]> detectList = convertOutputs(outputs,frame);
 
-        return outputs;
+        return detectList;
     }
 
-    private List<float[]> convertOutputs(Map<String, FloatTensor> outputs) {
-        float[] locations = {};
-        float[] confidences = {};
+    private List<float[]> convertOutputs(Map<String, FloatTensor> outputs,Bitmap frame) {
+        float MIN_CONF = 0.3F;
+        float[] boxes = {};
+        float[] scores = {};
+        float[] classes = {};
+        float[] boxes_selected = {};
+        float[] scores_selected = {};
+        float[] classes_selected = {};
         List<float[]> detectList = new ArrayList<>();
         for (Map.Entry<String, FloatTensor> output : outputs.entrySet()) {
             FloatTensor outputTensor = output.getValue();
             switch (output.getKey()) {
-                case "locations":
-                    locations = new float[outputTensor.getSize()];
+                case "Postprocessor/BatchMultiClassNonMaxSuppression_boxes":
+                    boxes = new float[outputTensor.getSize()];
 
-                    outputTensor.read(locations, 0, locations.length);
+                    outputTensor.read(boxes, 0, boxes.length);
 //                    Log.d(LOGTAG,"locations" + Arrays.toString(locations));
                     break;
-                case "confidences":
-                    confidences = new float[outputTensor.getSize()];
+                case "Postprocessor/BatchMultiClassNonMaxSuppression_scores":
+                    scores = new float[outputTensor.getSize()];
 
-                    outputTensor.read(confidences, 0, confidences.length);
+                    outputTensor.read(scores, 0, scores.length);
 //                    Log.d(LOGTAG,"confidences" + Arrays.toString(confidences));
+                    break;
+                case "Postprocessor/BatchMultiClassNonMaxSuppression_classes":
+                    classes = new float[outputTensor.getSize()];
+
+                    outputTensor.read(classes, 0, classes.length);
+//                    Log.d(LOGTAG,"locations" + Arrays.toString(locations));
                     break;
             }
         }
-        detectList.add(locations);
-        detectList.add(confidences);
-
+        for (int i = 0 ; i < scores.length; i++)
+        {
+            if (scores[i] < MIN_CONF){
+                break;
+            }
+            else {
+                scores_selected = ArrayUtils.add(scores_selected,scores[i]);
+                boxes_selected = ArrayUtils.add(boxes_selected,Math.max(1,(boxes[i*4]*frame.getHeight())));
+                boxes_selected = ArrayUtils.add(boxes_selected,Math.max(1,(boxes[i*4+1]*frame.getWidth())));
+                boxes_selected = ArrayUtils.add(boxes_selected,Math.min(frame.getHeight(),(boxes[i*4+2]*frame.getHeight())));
+                boxes_selected = ArrayUtils.add(boxes_selected,Math.min(frame.getWidth(),(boxes[i*4+3]*frame.getWidth())));
+                classes_selected = ArrayUtils.add(classes_selected,classes[i]);
+            }
+        }
+        detectList.add(scores_selected);
+        detectList.add(classes_selected);
+        detectList.add(boxes_selected);
         return detectList;
     }
 
