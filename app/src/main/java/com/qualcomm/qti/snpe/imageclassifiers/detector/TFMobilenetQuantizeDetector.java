@@ -75,7 +75,7 @@ public class TFMobilenetQuantizeDetector {
                     .setOutputLayers("Postprocessor/BatchMultiClassNonMaxSuppression")
                     .setCpuFallbackEnabled(true)
                     .setUseUserSuppliedBuffers(isUsingQuantized)
-                    .setPerformanceProfile(NeuralNetwork.PerformanceProfile.HIGH_PERFORMANCE);
+                    .setPerformanceProfile(NeuralNetwork.PerformanceProfile.BURST);
             network = builder.build();
 
             // Prepare inputs buffer
