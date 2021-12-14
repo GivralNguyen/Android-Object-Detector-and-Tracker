@@ -14,6 +14,7 @@ import com.qualcomm.qti.snpe.SNPE;
 import com.qualcomm.qti.snpe.TF8UserBufferTensor;
 import com.qualcomm.qti.snpe.Tensor;
 import com.qualcomm.qti.snpe.UserBufferTensor;
+import com.qualcomm.qti.snpe.imageclassifiers.thread.PreprocessResult;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.opencv.android.Utils;
@@ -89,35 +90,11 @@ public class TFMobilenetQuantizeDetector {
     }
 
 
-    public List<float[]> detectFrame(Bitmap frame) {
+    public List<float[]> detectFrame(PreprocessResult preprocessResult) {
 
-        mRatioWidth = (float) (MODEL_WIDTH / (frame.getWidth() * 1.0));
-        mRatioHeight =  (float)(MODEL_HEIGHT / (frame.getHeight()* 1.0));
+        Bitmap frame = preprocessResult.getFrame();
+        inputValues = preprocessResult.getInputs();
 
-        /**Preprocessing**/
-        long preProcessStart = System.currentTimeMillis();
-
-        /**Resizing Bitmap**/
-        final float scaleX = MODEL_WIDTH / (float) (frame.getWidth());
-        final float scaleY = MODEL_HEIGHT / (float) (frame.getHeight());
-        final Matrix scalingMatrix = new Matrix();
-        scalingMatrix.postScale(scaleX, scaleY);
-        Bitmap resizedBitmap = Bitmap.createBitmap(frame,
-                0, 0,
-                frame.getWidth(), frame.getHeight(),scalingMatrix,false);
-        Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
-        Bitmap frame32 = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true);//ismutable
-        Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
-        Imgproc.cvtColor(frameCv , frameCv , Imgproc.COLOR_RGBA2BGR);//COLOR_RGBA2RGB
-        frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0); //convert to 32F
-        Core.subtract(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
-        Core.divide(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
-        frameCv.get(0, 0, inputValues); //image.astype(np.float32)
-        /**Resizing Bitmap**/
-
-        long preProcessTime = System.currentTimeMillis()- preProcessStart;
-        Log.d(LOGTAG,"Preprocess_time: "+ preProcessTime);
-        /**Preprocessing**/
 
         /**Convert to FloatTensor**/
         long convertTensorStart = System.currentTimeMillis();
@@ -126,11 +103,9 @@ public class TFMobilenetQuantizeDetector {
             inputs.put(mInputLayer, inputTensor);
         } else {
         }
-        long convertTensorTime = System.currentTimeMillis()- convertTensorStart;
-        Log.d(LOGTAG,"convertTensor_time: "+ convertTensorTime);
-        /**Convert to FloatTensor**/
 
         /**Execute model**/
+
         long modelExecutionStart = System.currentTimeMillis();
         final Map<String, FloatTensor> outputs = network.execute(inputs);
         long modelExecutionTime = System.currentTimeMillis() - modelExecutionStart;

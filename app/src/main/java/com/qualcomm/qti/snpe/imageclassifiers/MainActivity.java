@@ -6,6 +6,7 @@
 package com.qualcomm.qti.snpe.imageclassifiers;
 import static org.bytedeco.javacpp.Loader.getCacheDir;
 
+
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -21,6 +22,9 @@ import com.qualcomm.qti.snpe.FloatTensor;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Bbox;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.TFMobilenetQuantizeDetector;
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Recognition;
+import com.qualcomm.qti.snpe.imageclassifiers.thread.DetectorThread;
+import com.qualcomm.qti.snpe.imageclassifiers.thread.PostProcessThread;
+import com.qualcomm.qti.snpe.imageclassifiers.thread.PreprocessThread;
 
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_java;
@@ -36,7 +40,6 @@ import java.util.Map;
 public class MainActivity extends Activity {
     /** Declare variables **/
     private static final String LOGTAG = MainActivity.class.getSimpleName();
-    private TFMobilenetQuantizeDetector mDetector1;
     private Bitmap testImageBitmap;
 
     /** Declare variables **/
@@ -49,72 +52,60 @@ public class MainActivity extends Activity {
         testImageBitmap = loadBmpImage(R.raw.image2);/**Load bitmap image**/
         long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
         Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
-        mDetector1 = new TFMobilenetQuantizeDetector(this, this.getApplication(), R.raw.mobilenet_ssd_quantized); /**load mobilenet model**/
+        final PostProcessThread postProcessThread = new PostProcessThread(this);
+        final DetectorThread detectorThread = new DetectorThread(this.getApplication(),this,postProcessThread);
+        final PreprocessThread preprocessThread = new PreprocessThread(detectorThread);
 
         Thread t1 = new Thread(new Runnable() {
             @Override
             public void run() {
                 /** Loop running detection **/
                 while(true) {
-
-                    try {
-                        startAIFlowDetect(mDetector1, testImageBitmap);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    preprocessThread.addItem(testImageBitmap);
 
                 }
                 /** Loop running detection **/
             }
         });
-        t1.setName("Ai Thread 1");
+        t1.setName("Ai Thread load img");
         t1.start();
 
-    }
-
-    private void startAIFlowDetect(TFMobilenetQuantizeDetector mDetector, Bitmap bmp) throws IOException {
-        List<float[]> outputs;
-        long detectFrameStart = System.currentTimeMillis();
-        outputs = mDetector.detectFrame(bmp);
-
-        long detectFrameTime = System.currentTimeMillis()- detectFrameStart;
-        Log.d(LOGTAG, "detectframe: "+ detectFrameTime);
-        float[] outputConf = outputs.get(0);
-        float[] outputClass = outputs.get(1);
-        float[] outputBbox = outputs.get(2);
-        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
-        Canvas canvasMerge = new Canvas(bmpcopy);
-
-        Paint paintMerge = new Paint();
-        //paint.setAlpha(0xA0); // the transparency
-        paintMerge.setColor(Color.RED); // color is red
-        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
-        paintMerge.setStrokeWidth(1); // the stroke width
-        for(int i = 0; i< outputConf.length;i++){
-            Rect r = new Rect((int) outputBbox[i*4+1], (int) outputBbox[i*4], (int) outputBbox[i*4+3], (int) outputBbox[i*4+2]);
-            canvasMerge.drawRect(r, paintMerge);
-            canvasMerge.drawText(Float.toString(outputClass[i]),(int) outputBbox[i*4+1], (int) outputBbox[i*4+0],paintMerge );
-        }
-        String filenameMerge = "detectresult";
-        savebitmap(bmpcopy, filenameMerge);
-//        final Bitmap bmpcopy = bmp.copy(Bitmap.Config.ARGB_8888, true);
-//        Canvas canvasMerge = new Canvas(bmpcopy);
-//
-//        Paint paintMerge = new Paint();
-//        //paint.setAlpha(0xA0); // the transparency
-//        paintMerge.setColor(Color.RED); // color is red
-//        paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
-//        paintMerge.setStrokeWidth(1); // the stroke width
-//
-//        for (Bbox mBox : outputs) {
-//            Rect r = new Rect((int) mBox.x1, (int) mBox.y1, (int) mBox.x2, (int) mBox.y2);
-//            canvasMerge.drawRect(r, paintMerge);
-//            canvasMerge.drawText(Integer.toString(mBox.label), mBox.x1, mBox.y1,paintMerge );
-//        }
-//        String filenameMerge = "detectresult";
-//        savebitmap(bmpcopy, filenameMerge);
-
-
+        Thread t2 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                /** Loop running detection **/
+                while(true) {
+                    preprocessThread.run();
+                }
+                /** Loop running detection **/
+            }
+        });
+        t2.setName("Ai Thread preprocess");
+        t2.start();
+        Thread t3 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                /** Loop running detection **/
+                while(true) {
+                    detectorThread.run();
+                }
+                /** Loop running detection **/
+            }
+        });
+        t3.setName("Ai Thread preprocess");
+        t3.start();
+        Thread t4 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                /** Loop running detection **/
+                while(true) {
+                    postProcessThread.run();
+                }
+                /** Loop running detection **/
+            }
+        });
+        t4.setName("Ai Thread preprocess");
+        t4.start();
     }
 
     private Bitmap loadBmpImage(int Input){
@@ -124,30 +115,6 @@ public class MainActivity extends Activity {
 
         return testBmp;
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mDetector1 != null){
-            mDetector1.close();
-        }
-
-    }
-
-    public File savebitmap(Bitmap bmp, String filename) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        bmp.compress(Bitmap.CompressFormat.JPEG, 60, bytes);
-        File f = new File(this.getCacheDir()
-                + File.separator + filename +".jpg");
-        Log.d(LOGTAG + "fpath", "file-path= " + (getCacheDir()
-                + File.separator + filename +".jpg"));
-        f.createNewFile();
-        FileOutputStream fo = new FileOutputStream(f);
-        fo.write(bytes.toByteArray());
-        fo.close();
-        return f;
-    }
-
 
 
 
