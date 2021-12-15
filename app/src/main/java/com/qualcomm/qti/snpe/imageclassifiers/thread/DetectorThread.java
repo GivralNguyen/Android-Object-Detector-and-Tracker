@@ -50,11 +50,11 @@ public class DetectorThread extends Thread{
                     /**Execute model**/
                     PreprocessResult preprocessResult = DetectorQueue.takeFirst();
                     Bitmap original_dt = preprocessResult.getFrame();
-
+                    int detect_frame_id = preprocessResult.getFrame_id_preprocess();
                     long modelExecutionStart = System.currentTimeMillis();
                     final List<float[]> outputs = mDetector.detectFrame(preprocessResult);
                     long modelExecutionTime = System.currentTimeMillis() - modelExecutionStart;
-                    postProcessThread.addItem(new DetectorResult(original_dt,outputs));
+                    postProcessThread.addItem(new DetectorResult(original_dt,outputs,detect_frame_id));
                     Log.d(LOGTAG, "model_Execute: " + modelExecutionTime);
                     /**Execute model**/
                 } catch (InterruptedException e) {

@@ -36,7 +36,7 @@ public class PreprocessThread extends Thread{
     private DetectorThread DetectorThread;
 
     /** class main attribute */
-    private LinkedBlockingDeque<Bitmap> preprocessQueue;
+    private LinkedBlockingDeque<FrameLoaderResult> preprocessQueue;
     private boolean isProcess = true;
 
     private float[] inputValues = new float[MODEL_WIDTH * MODEL_HEIGHT * 3];
@@ -68,7 +68,9 @@ public class PreprocessThread extends Thread{
                     /**Preprocessing**/
                     long preProcessStart = System.currentTimeMillis();
                     /**Resizing Bitmap**/
-                    Bitmap original = preprocessQueue.takeFirst();
+                    FrameLoaderResult frameLoader = preprocessQueue.takeFirst();
+                    Bitmap original = frameLoader.getFrame();
+                    int frame_id_preprocess = frameLoader.getFrame_id_loader();
                     final float scaleX = MODEL_WIDTH / (float) (original.getWidth());
                     final float scaleY = MODEL_HEIGHT / (float) (original.getHeight());
                     final Matrix scalingMatrix = new Matrix();
@@ -86,7 +88,7 @@ public class PreprocessThread extends Thread{
                     frameCv.get(0, 0, inputValues); //image.astype(np.float32)
                     /**Resizing Bitmap**/
 
-                    DetectorThread.addItem(new PreprocessResult(original,inputValues));
+                    DetectorThread.addItem(new PreprocessResult(original,inputValues,frame_id_preprocess));
                     long preProcessTime = System.currentTimeMillis()- preProcessStart;
                     Log.d(LOGTAG,"Preprocess_time: "+ preProcessTime);
                     /**Preprocessing**/
@@ -97,7 +99,7 @@ public class PreprocessThread extends Thread{
 
         }
     }
-    public boolean addItem(Bitmap frame) {
+    public boolean addItem(FrameLoaderResult frame) {
         if (preprocessQueue.size() > MAX_QUEUE_SIZE){
             try {
                 preprocessQueue.takeFirst();

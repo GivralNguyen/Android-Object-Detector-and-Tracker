@@ -10,10 +10,19 @@ import java.util.Map;
 public class PreprocessResult {
     private Bitmap frame;
     private float[] inputs ;
-
-    public PreprocessResult(Bitmap frame, float[] inputs){
+    private int frame_id_preprocess;
+    public PreprocessResult(Bitmap frame, float[] inputs,int frame_id_preprocess){
         this.frame = frame;
         this.inputs = inputs;
+        this.frame_id_preprocess = frame_id_preprocess;
+    }
+
+    public int getFrame_id_preprocess() {
+        return frame_id_preprocess;
+    }
+
+    public void setFrame_id_preprocess(int frame_id_preprocess) {
+        this.frame_id_preprocess = frame_id_preprocess;
     }
 
     public Bitmap getFrame() {

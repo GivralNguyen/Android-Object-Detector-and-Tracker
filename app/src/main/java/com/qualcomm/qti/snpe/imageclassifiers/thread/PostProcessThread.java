@@ -44,6 +44,7 @@ public class PostProcessThread extends Thread{
                     DetectorResult detectorResult = PostProcessQueue.takeFirst();
                     List<float[]> outputs = detectorResult.getOutputs();
                     Bitmap frame_pp = detectorResult.getFrame();
+                    int postProcess_frame_id = detectorResult.getFrame_id_detector();
                     float[] outputConf = outputs.get(0);
                     float[] outputClass = outputs.get(1);
                     float[] outputBbox = outputs.get(2);
@@ -60,7 +61,8 @@ public class PostProcessThread extends Thread{
                         canvasMerge.drawRect(r, paintMerge);
                         canvasMerge.drawText(Float.toString(outputClass[i]),(int) outputBbox[i*4+1], (int) outputBbox[i*4+0],paintMerge );
                     }
-                    String filenameMerge = "detectresult";
+                    String formatted = String.format("%06d", postProcess_frame_id);
+                    String filenameMerge = "detectresult"+ formatted;
                     savebitmap(bmpcopy, filenameMerge);
                     long postProcessTime = System.currentTimeMillis()- postProcessStart;
                     Log.d(LOGTAG, "postprocess: "+ postProcessTime);

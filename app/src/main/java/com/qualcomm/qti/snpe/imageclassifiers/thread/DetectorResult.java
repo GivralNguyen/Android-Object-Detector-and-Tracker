@@ -10,9 +10,19 @@ import java.util.Map;
 public class DetectorResult {
     private Bitmap frame;
     private List<float[]> outputs;
-    public DetectorResult(Bitmap frame, List<float[]> outputs){
+    private int frame_id_detector;
+    public DetectorResult(Bitmap frame, List<float[]> outputs,int frame_id_detector){
         this.frame = frame;
         this.outputs = outputs;
+        this.frame_id_detector = frame_id_detector;
+    }
+
+    public int getFrame_id_detector() {
+        return frame_id_detector;
+    }
+
+    public void setFrame_id_detector(int frame_id_detector) {
+        this.frame_id_detector = frame_id_detector;
     }
 
     public Bitmap getFrame() {
