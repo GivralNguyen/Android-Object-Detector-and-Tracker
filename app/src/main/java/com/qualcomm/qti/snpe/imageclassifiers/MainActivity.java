@@ -22,6 +22,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -35,6 +36,7 @@ import com.qualcomm.qti.snpe.imageclassifiers.thread.FrameLoaderResult;
 import com.qualcomm.qti.snpe.imageclassifiers.thread.PostProcessThread;
 import com.qualcomm.qti.snpe.imageclassifiers.thread.PreprocessThread;
 
+import com.qualcomm.qti.snpe.imageclassifiers.view.VideoSurfaceView;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_java;
 
@@ -60,72 +62,19 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         Loader.load(opencv_java.class);
+        setContentView(R.layout.activity_main);
         long loadBmpStart = System.currentTimeMillis();
         testImageBitmap = loadBmpImage(R.raw.image2);/**Load bitmap image**/
         long loadBmpTime = System.currentTimeMillis()- loadBmpStart;
         Log.d(LOGTAG,"loadBmpTime_time: "+ loadBmpTime);
         final PostProcessThread postProcessThread = new PostProcessThread(this);
+        postProcessThread.setImageView(this.<VideoSurfaceView>findViewById(R.id.surfaceView));
         final DetectorThread detectorThread = new DetectorThread(this.getApplication(),this,postProcessThread);
         final PreprocessThread preprocessThread = new PreprocessThread(detectorThread);
 
-        final Thread t1 = new Thread(new Runnable() {
-            @TargetApi(Build.VERSION_CODES.P)
-            @Override
-            public void run() {
-                /** Loop running detection **/
-                while(true) {
-                    /** Loop running detection **/
-
-                    for (int i = 0; i < 10000; ++i) {
-                        Bitmap bitmap = mRetriever.getFrameAtIndex(i);
-                        preprocessThread.addItem(new FrameLoaderResult(bitmap,i));
-                    }
-                    /** Loop running detection **/
-
-                }
-                /** Loop running detection **/
-            }
-        });
-        t1.setName("Ai Thread load img");
-
-
-        final Thread t2 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                /** Loop running detection **/
-                while(true) {
-                    preprocessThread.run();
-                }
-                /** Loop running detection **/
-            }
-        });
-        t2.setName("Ai Thread preprocess");
-
-        final Thread t3 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                /** Loop running detection **/
-                while(true) {
-                    detectorThread.run();
-                }
-                /** Loop running detection **/
-            }
-        });
-        t3.setName("Ai Thread preprocess");
-
-        final Thread t4 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                /** Loop running detection **/
-                while(true) {
-                    postProcessThread.run();
-                }
-                /** Loop running detection **/
-            }
-        });
-        t4.setName("Ai Thread preprocess");
-
-        setContentView(R.layout.activity_main);
+        preprocessThread.start();
+        detectorThread.start();
+        postProcessThread.start();
         Button button = (Button) findViewById(R.id.button);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -133,14 +82,11 @@ public class MainActivity extends Activity {
                 pickVideo();
             }
         });
-        Button button2 = (Button) findViewById(R.id.button2);
+        final Button button2 = (Button) findViewById(R.id.button2);
         button2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                t1.start();
-                t2.start();
-                t3.start();
-                t4.start();
+                preprocessThread.addVideo(mRetriever);
             }
         });
     }

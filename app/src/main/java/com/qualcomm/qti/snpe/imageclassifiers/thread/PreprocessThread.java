@@ -3,10 +3,13 @@ package com.qualcomm.qti.snpe.imageclassifiers.thread;
 import static com.qualcomm.qti.snpe.imageclassifiers.detector.MobilenetDetector.MODEL_HEIGHT;
 import static com.qualcomm.qti.snpe.imageclassifiers.detector.MobilenetDetector.MODEL_WIDTH;
 
+import android.annotation.TargetApi;
 import android.app.Application;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.media.MediaMetadataRetriever;
+import android.os.Build;
 import android.util.Log;
 
 import com.qualcomm.qti.snpe.FloatTensor;
@@ -43,7 +46,7 @@ public class PreprocessThread extends Thread{
     private FloatTensor inputTensor = null;
     private Map<String, FloatTensor> inputs = new HashMap<>();
     String mInputLayer = "";
-
+    private MediaMetadataRetriever mRetriever;
 
 
     /** Constructor 2: using default detector */
@@ -53,6 +56,7 @@ public class PreprocessThread extends Thread{
         this.setName(PREPROCESSING_THREAD);
     }
     /** do preprocessing */
+    @TargetApi(Build.VERSION_CODES.P)
     @Override
     public void run() {
         while (isProcess) {
@@ -63,35 +67,25 @@ public class PreprocessThread extends Thread{
                 e.printStackTrace();
             }
 
+            if(mRetriever != null) {
+                int i = 0;
+                while(true) {
+                    /** Loop running detection **/
+                    try {
+                        Bitmap bitmap = mRetriever.getFrameAtIndex(i++);
+                        preprocessFrame(new FrameLoaderResult(bitmap, i));
+                    } catch (Exception e){
+                        Log.e(LOGTAG, "Running out frame, total = " + i);
+                        mRetriever = null;
+                        break;
+                    }
+                }
+            }
+
             if (preprocessQueue.size() > 0){
                 try {
-                    /**Preprocessing**/
-                    long preProcessStart = System.currentTimeMillis();
-                    /**Resizing Bitmap**/
                     FrameLoaderResult frameLoader = preprocessQueue.takeFirst();
-                    Bitmap original = frameLoader.getFrame();
-                    int frame_id_preprocess = frameLoader.getFrame_id_loader();
-                    final float scaleX = MODEL_WIDTH / (float) (original.getWidth());
-                    final float scaleY = MODEL_HEIGHT / (float) (original.getHeight());
-                    final Matrix scalingMatrix = new Matrix();
-                    scalingMatrix.postScale(scaleX, scaleY);
-                    Bitmap resizedBitmap = Bitmap.createBitmap(original,
-                            0, 0,
-                            original.getWidth(), original.getHeight(),scalingMatrix,false);
-                    Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
-                    Bitmap frame32 = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true);//ismutable
-                    Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
-                    Imgproc.cvtColor(frameCv , frameCv , Imgproc.COLOR_RGBA2BGR);//COLOR_RGBA2RGB
-                    frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0); //convert to 32F
-                    Core.subtract(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
-                    Core.divide(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
-                    frameCv.get(0, 0, inputValues); //image.astype(np.float32)
-                    /**Resizing Bitmap**/
-
-                    DetectorThread.addItem(new PreprocessResult(original,inputValues,frame_id_preprocess));
-                    long preProcessTime = System.currentTimeMillis()- preProcessStart;
-                    Log.d(LOGTAG,"Preprocess_time: "+ preProcessTime);
-                    /**Preprocessing**/
+                    preprocessFrame(frameLoader);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -99,6 +93,36 @@ public class PreprocessThread extends Thread{
 
         }
     }
+
+    private void preprocessFrame(FrameLoaderResult frameLoader){
+        /**Preprocessing**/
+        long preProcessStart = System.currentTimeMillis();
+        /**Resizing Bitmap**/
+        Bitmap original = frameLoader.getFrame();
+        int frame_id_preprocess = frameLoader.getFrame_id_loader();
+        final float scaleX = MODEL_WIDTH / (float) (original.getWidth());
+        final float scaleY = MODEL_HEIGHT / (float) (original.getHeight());
+        final Matrix scalingMatrix = new Matrix();
+        scalingMatrix.postScale(scaleX, scaleY);
+        Bitmap resizedBitmap = Bitmap.createBitmap(original,
+                0, 0,
+                original.getWidth(), original.getHeight(),scalingMatrix,false);
+        Mat frameCv = new Mat();//frame.getWidth(), frame.getHeight(), CvType.CV_8UC3);
+        Bitmap frame32 = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true);//ismutable
+        Utils.bitmapToMat(frame32, frameCv);//frame32, frameCv);
+        Imgproc.cvtColor(frameCv , frameCv , Imgproc.COLOR_RGBA2BGR);//COLOR_RGBA2RGB
+        frameCv.convertTo(frameCv, CvType.CV_32F);//, 1.0, 0); //convert to 32F
+        Core.subtract(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
+        Core.divide(frameCv, new Scalar(128.0f, 128.0f, 128.0f), frameCv);
+        frameCv.get(0, 0, inputValues); //image.astype(np.float32)
+        /**Resizing Bitmap**/
+
+        DetectorThread.addItem(new PreprocessResult(original,inputValues,frame_id_preprocess));
+        long preProcessTime = System.currentTimeMillis()- preProcessStart;
+        Log.d(LOGTAG,"Preprocess_time: "+ preProcessTime);
+        /**Preprocessing**/
+    }
+
     public boolean addItem(FrameLoaderResult frame) {
         if (preprocessQueue.size() > MAX_QUEUE_SIZE){
             try {
@@ -108,5 +132,10 @@ public class PreprocessThread extends Thread{
             }
         }
         return preprocessQueue.offerLast(frame);
+    }
+
+
+    public void addVideo(MediaMetadataRetriever retriever) {
+        mRetriever = retriever;
     }
 }

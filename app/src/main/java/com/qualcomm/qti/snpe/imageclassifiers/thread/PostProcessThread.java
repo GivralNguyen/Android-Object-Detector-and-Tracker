@@ -2,6 +2,7 @@ package com.qualcomm.qti.snpe.imageclassifiers.thread;
 
 import static org.bytedeco.javacpp.Loader.getCacheDir;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -9,6 +10,9 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.Log;
+import android.view.SurfaceView;
+import android.widget.ImageView;
+import com.qualcomm.qti.snpe.imageclassifiers.view.VideoSurfaceView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -23,6 +27,7 @@ public class PostProcessThread extends Thread{
     private static final String AI_POST_PROCESS_THREAD = "AI post process thread";
 
     private Context mContext;
+    private VideoSurfaceView mImageView;
     private LinkedBlockingDeque<DetectorResult> PostProcessQueue;
 
     public PostProcessThread(Context context) {
@@ -64,6 +69,7 @@ public class PostProcessThread extends Thread{
                     String formatted = String.format("%06d", postProcess_frame_id);
                     String filenameMerge = "detectresult"+ formatted;
                     savebitmap(bmpcopy, filenameMerge);
+                    displayVideo(bmpcopy);
                     long postProcessTime = System.currentTimeMillis()- postProcessStart;
                     Log.d(LOGTAG, "postprocess: "+ postProcessTime);
                 } catch (InterruptedException | IOException e) {
@@ -97,5 +103,14 @@ public class PostProcessThread extends Thread{
         return f;
     }
 
+    public void displayVideo(Bitmap bmp) {
+        if(mImageView != null) {
+            mImageView.drawBitmap(bmp);
+        }
+    }
+
+    public void setImageView(VideoSurfaceView mImageView) {
+        this.mImageView = mImageView;
+    }
 }
 
