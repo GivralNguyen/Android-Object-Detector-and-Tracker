@@ -14,6 +14,7 @@ import android.view.SurfaceView;
 import android.widget.ImageView;
 
 import com.qualcomm.qti.snpe.imageclassifiers.detector.Bbox;
+import com.qualcomm.qti.snpe.imageclassifiers.sortJni.TrackUtils;
 import com.qualcomm.qti.snpe.imageclassifiers.view.VideoSurfaceView;
 
 import java.io.ByteArrayOutputStream;
@@ -67,29 +68,29 @@ public class PostProcessThread extends Thread{
                         listBox.add(r);
 
                     }
-                    tracker.prepareTrackSortFace(listBox);
+                    TrackUtils.TrackResult[] trackResults= tracker.prepareTrackSortFace(listBox);
 
 
-//                    final Bitmap bmpcopy = frame_pp.copy(Bitmap.Config.ARGB_8888, true);
-//                    Canvas canvasMerge = new Canvas(bmpcopy);
-//
-//                    Paint paintMerge = new Paint();
-//                    //paint.setAlpha(0xA0); // the transparency
-//                    paintMerge.setColor(Color.RED); // color is red
-//                    paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
-//                    paintMerge.setStrokeWidth(1); // the stroke width
-//                    for(int i = 0; i< outputConf.length;i++){
-//                        Rect r = new Rect((int) outputBbox[i*4+1], (int) outputBbox[i*4], (int) outputBbox[i*4+3], (int) outputBbox[i*4+2]);
-//                        canvasMerge.drawRect(r, paintMerge);
-//                        canvasMerge.drawText(Float.toString(outputClass[i]),(int) outputBbox[i*4+1], (int) outputBbox[i*4+0],paintMerge );
-//                    }
-//                    String formatted = String.format("%06d", postProcess_frame_id);
-//                    String filenameMerge = "detectresult"+ formatted;
-//                    savebitmap(bmpcopy, filenameMerge);
-//                    displayVideo(bmpcopy);
+                    final Bitmap bmpcopy = frame_pp.copy(Bitmap.Config.ARGB_8888, true);
+                    Canvas canvasMerge = new Canvas(bmpcopy);
+
+                    Paint paintMerge = new Paint();
+                    //paint.setAlpha(0xA0); // the transparency
+                    paintMerge.setColor(Color.RED); // color is red
+                    paintMerge.setStyle(Paint.Style.STROKE); // stroke or fill or ...
+                    paintMerge.setStrokeWidth(1); // the stroke width
+                    for(int i = 0; i< outputConf.length;i++){
+                        Rect r = new Rect((int) trackResults[i].x1, (int) trackResults[i].y1, (int) trackResults[i].width, (int) trackResults[i].height);
+                        canvasMerge.drawRect(r, paintMerge);
+                        canvasMerge.drawText(Float.toString(outputClass[i]),(int) outputBbox[i*4+1], (int) outputBbox[i*4+0],paintMerge );
+                    }
+                    String formatted = String.format("%06d", postProcess_frame_id);
+                    String filenameMerge = "detectresult"+ formatted;
+                    savebitmap(bmpcopy, filenameMerge);
+                    displayVideo(bmpcopy);
                     long postProcessTime = System.currentTimeMillis()- postProcessStart;
                     Log.d(LOGTAG, "postprocess: "+ postProcessTime);
-                } catch (InterruptedException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
