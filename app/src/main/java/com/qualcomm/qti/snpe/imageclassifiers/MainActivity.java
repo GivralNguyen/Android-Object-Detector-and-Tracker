@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        System.loadLibrary("Fr-align-lib");
         Loader.load(opencv_java.class);
         setContentView(R.layout.activity_main);
         long loadBmpStart = System.currentTimeMillis();
